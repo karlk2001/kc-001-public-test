@@ -1,0 +1,80 @@
+<!doctype html>
+<html lang="es"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="referrer" content="no-referrer"><meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; base-uri 'none'; form-action 'none'; connect-src 'none'; img-src 'none'; object-src 'none'">
+<title>KC-001 · Simulación aislada</title>
+<style>
+:root{color-scheme:dark;font-family:system-ui,-apple-system,sans-serif;background:#101820;color:#f1f5f9}
+body{max-width:720px;margin:auto;padding:16px}h1{font-size:1.35rem}small,.muted{color:#aab9c6}
+header{border-bottom:1px solid #38505b;padding-bottom:12px}
+#chat{min-height:280px;max-height:54vh;overflow:auto;display:flex;flex-direction:column;gap:10px;padding:15px 0}
+.bubble{border-radius:14px;padding:12px;white-space:pre-wrap;line-height:1.5;max-width:92%;overflow-wrap:anywhere}
+.user{background:#244a5b;align-self:flex-end}.bot{background:#24313d;align-self:flex-start}
+form{display:flex;gap:8px}input{flex:1;min-width:0;border:1px solid #688291;border-radius:9px;padding:13px;font:inherit;background:#182833;color:white}
+button{background:#d8e8ed;color:#10212a;border:0;border-radius:9px;padding:11px;font:inherit;cursor:pointer}
+button:disabled,input:disabled{opacity:.5}
+.controls{display:flex;gap:8px;flex-wrap:wrap;margin-top:12px}
+pre{white-space:pre-wrap;font-size:.8rem;background:#1a2933;padding:12px;border-radius:10px;max-height:170px;overflow:auto}
+</style></head><body>
+<header><h1>KARL · KC-001 v0.1</h1><small>SIMULACIÓN DETERMINISTA · SIN IA · SIN RED · SIN ESCRITURA · NO ES KARL SHADOW</small></header>
+<main><section id="chat" role="log" aria-live="polite"></section>
+<form id="form"><input id="msg" autocomplete="off" maxlength="600" placeholder="Escribe: Diosea, KARL" aria-label="Mensaje"><button id="send" type="submit">Enviar</button></form>
+<div class="controls"><button id="memory">Consultar memoria</button><button id="test">Ejecutar pruebas</button><button id="stop">Terminar sesión</button></div>
+<p class="muted"><small>Los datos son ficticios. No se usan cookies, almacenamiento local, llamadas de red, APIs, modelos ni servidores. El registro vive solo en memoria de esta pestaña y desaparece al cerrarla.</small></p>
+<details><summary>Registro de sesión y pruebas (volátil)</summary><pre id="log"></pre></details></main>
+<script>
+"use strict";
+const FIXTURE=Object.freeze({
+ problem:{id:"P-SIM-01",title:"Estabilidad de suministro",synthetic:true},
+ conclusions:Object.freeze([
+  Object.freeze({id:"C-SIM-01",title:"Suministro estable",status:"REOPENED"}),
+  Object.freeze({id:"C-SIM-02",title:"Consumo estable",status:"COMPATIBLE"})
+ ]),
+ evidences:Object.freeze([
+  Object.freeze({id:"E-SIM-01",value:8}),
+  Object.freeze({id:"E-SIM-02",value:7}),
+  Object.freeze({id:"E-SIM-03",value:6}),
+  Object.freeze({id:"E-SIM-04",value:5}),
+  Object.freeze({id:"E-SIM-05",value:2}),
+  Object.freeze({id:"E-SIM-06",value:0})
+ ])
+});
+const ledger=[];
+let active=true;
+function snapshot(){return JSON.stringify(FIXTURE);}
+const baseline=snapshot();
+function classify(message){
+ const s=String(message).normalize("NFD").replace(/[\u0300-\u036f]/g,"").toLowerCase().trim();
+ if(/(registr|guard|escrib|agreg|insert|modific|cambi|actualiz|borra|elimin|reabr|cierra|checkpoint|rollback)/.test(s))
+  return {type:"WRITE_DENIED",text:"Operación rechazada. KC-001 no puede escribir evidencias, modificar conclusiones, checkpoints ni memoria."};
+ if(/(volvio|regreso|ahora|nueva|nuevo|otra vez|es cero|= ?0|suministro.*cero|suministro.*0)/.test(s))
+  return {type:"UNVERIFIED_CLAIM",text:"Detecto una afirmación nueva o potencialmente contradictoria sobre suministro. Es una declaración conversacional NO VERIFICADA, no una evidencia. La conclusión C-SIM-01 permanece REOPENED. ¿Deseas preparar una propuesta para revisión humana? KC-001 no la registrará."};
+ if(/diosea[,\s]+karl/.test(s))
+  return {type:"GREETING",text:"Diosea, KARL. Soy KC-001, una simulación determinista aislada. Puedes consultar la memoria sintética y las conclusiones; no puedo registrar ni cambiar nada."};
+ if(/(memoria|evidencia|recuerd|problema|cuantas|cuantos)/.test(s))
+  return {type:"MEMORY",text:"Memoria SINTÉTICA fija:\nProblema: P-SIM-01 (Estabilidad de suministro).\nEvidencias: E-SIM-01 a E-SIM-06 (6 registros ficticios).\nConclusiones: C-SIM-01 REOPENED; C-SIM-02 COMPATIBLE.\nProcedencia: FIXTURE KC-001 v0.1 (incluida en este archivo)."};
+ if(/(conclusion|estado|compatible|abierta)/.test(s))
+  return {type:"CONCLUSIONS",text:"C-SIM-01: Suministro estable → REOPENED.\nC-SIM-02: Consumo estable → COMPATIBLE.\nAmbos estados son sintéticos y no se modifican por conversación."};
+ return {type:"UNKNOWN",text:"No tengo una respuesta programada para esa consulta. No generaré recuerdos ni inferencias como hechos. Prueba preguntar por memoria o conclusiones."};
+}
+function record(kind,data){ledger.push({n:ledger.length+1,kind,...data});document.getElementById("log").textContent=JSON.stringify(ledger,null,2);}
+function bubble(who,text){const d=document.createElement("div");d.className="bubble "+who;d.textContent=text;document.getElementById("chat").appendChild(d);d.scrollIntoView({block:"end"});}
+function submitMessage(message){if(!active)return;const value=String(message).trim();if(!value)return;bubble("user",value);const r=classify(value);bubble("bot",r.text);record("TURN",{input:value,classification:r.type,response:r.text});}
+function endSession(){if(!active)return;record("END",{reason:"human_stop"});active=false;bubble("bot","Sesión terminada por el humano. No se conservará estado al cerrar la pestaña.");document.getElementById("msg").disabled=true;document.getElementById("send").disabled=true;document.getElementById("memory").disabled=true;document.getElementById("test").disabled=true;document.getElementById("stop").disabled=true;}
+function selfTest(){
+ const cases=[
+ ["saludo",classify("Diosea, KARL").type==="GREETING"],
+ ["memoria",classify("¿Qué recuerdas de las evidencias?").type==="MEMORY"],
+ ["conclusiones",classify("¿Qué conclusiones están abiertas?").type==="CONCLUSIONS"],
+ ["contradicción",classify("El suministro volvió a cero").type==="UNVERIFIED_CLAIM"],
+ ["rechazo escritura",classify("Registra evidencia nueva").type==="WRITE_DENIED"],
+ ["desconocido",classify("¿Qué hora es en Marte?").type==="UNKNOWN"],
+ ["inmutabilidad",snapshot()===baseline && FIXTURE.evidences.length===6 && FIXTURE.conclusions.length===2]
+ ];
+ return {cases,pass:cases.every(x=>x[1]),fixtureUnchanged:snapshot()===baseline};
+}
+document.getElementById("form").addEventListener("submit",e=>{e.preventDefault();const input=document.getElementById("msg");submitMessage(input.value);input.value="";input.focus();});
+document.getElementById("memory").addEventListener("click",()=>submitMessage("¿Qué recuerdas de la memoria y las evidencias?"));
+document.getElementById("test").addEventListener("click",()=>{if(!active)return;const result=selfTest();record("SELF_TEST",result);bubble("bot","Pruebas deterministas: "+(result.pass?"7/7 PASA":"FALLA")+". Consulta el registro volátil para detalles.");});
+document.getElementById("stop").addEventListener("click",endSession);
+bubble("bot","KC-001 listo. Escribe «Diosea, KARL». Esta interfaz solo simula respuestas predefinidas.");
+</script></body></html>
